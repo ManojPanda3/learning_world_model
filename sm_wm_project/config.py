@@ -19,16 +19,18 @@ class Config:
     grad_clip: float = 1.0
     epochs: int = 30
     
-    # Target Margin Capacity
+    # Curriculum penalties & target capacity
     target_slots: float = 5.0
-    warmup_epochs: int = 8
-    ramp_epochs: int = 18
-    lambda_w_max: float = 0.02
-    lambda_k_max: float = 0.02
+    warmup_epochs: int = 10
+    ramp_epochs: int = 22
+    lambda_w_max: float = 0.005
+    lambda_k_max: float = 0.015
+    rollout_loss_weight: float = 0.5
+    rollout_horizon: int = 4
     
     # Gate bias inits
-    write_gate_bias_init: float = 0.5
-    evict_gate_bias_init: float = 0.5
+    write_gate_bias_init: float = 1.0
+    evict_gate_bias_init: float = 0.0
     
     # Dataset
     train_episodes: int = 10000

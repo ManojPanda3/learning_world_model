@@ -61,9 +61,13 @@ def eval_rq1_learned_forgetting(model, dataset, device="cpu"):
     write_dist_rate = float(np.mean(dist_writes)) if len(dist_writes) > 0 else 0.0
 
     # Eviction analysis:
-    # On pickup step, find which slot had the highest write probability / occupancy change
-    # Then inspect keep_probs or occupancy for that slot after door-open step
+    # 1. On pickup step, find which slot had the highest write probability / occupancy change
+    # 2. Measure keep probability DURING carrying phase (t_pick < t < t_door)
+    # 3. Measure keep probability AFTER door-open phase (t > t_door)
     eviction_drops = []
+    during_carry_keeps = []
+    post_door_keeps = []
+
     for ep in range(min(N, 200)):
         pickup_indices = np.where(is_pickup[ep])[0]
         door_indices = np.where(is_door[ep])[0]
@@ -73,12 +77,19 @@ def eval_rq1_learned_forgetting(model, dataset, device="cpu"):
             if t_door > t_pick and t_door + 1 < T:
                 # Find slot that became occupied at t_pick
                 slot_idx = int(np.argmax(m_history[ep, t_pick]))
+                
+                # Check keep probability while carrying the key
+                during_k = keep_probs[ep, t_pick:t_door, slot_idx]
+                during_carry_keeps.extend(during_k.tolist())
+
                 # Keep probability at door opening / right after door
                 k_after = keep_probs[ep, t_door + 1, slot_idx]
+                post_door_keeps.append(float(k_after))
                 evicted = float(k_after < 0.5)
                 eviction_drops.append(evicted)
 
     eviction_rate = float(np.mean(eviction_drops)) if len(eviction_drops) > 0 else 0.0
+    carry_retention_rate = float(np.mean(np.array(during_carry_keeps) >= 0.5)) if len(during_carry_keeps) > 0 else 0.0
     mean_active_slots = float(np.mean(np.sum(m_history > 0.5, axis=-1)))
 
     return {
@@ -87,6 +98,7 @@ def eval_rq1_learned_forgetting(model, dataset, device="cpu"):
         "write_novel_rate": write_novel_rate,
         "write_pickup_rate": write_pickup_rate,
         "write_distractor_rate": write_dist_rate,
+        "carry_retention_rate": carry_retention_rate,
         "post_door_eviction_rate": eviction_rate,
         "mean_active_slots": mean_active_slots,
     }

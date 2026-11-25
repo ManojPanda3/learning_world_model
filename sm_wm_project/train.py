@@ -154,14 +154,35 @@ def train(args):
                 optimizer.zero_grad(set_to_none=True)
                 with torch.amp.autocast(device.type, dtype=torch.float16, enabled=use_amp):
                     out = model(b_obs, b_act)
+                    # 1. 1-step Teacher-Forced Loss
                     pred_obs = out["obs_pred"][:, :-1]
                     target_obs = b_obs[:, 1:]
-                    loss_obs = F.mse_loss(pred_obs, target_obs)
+                    loss_obs_tf = F.mse_loss(pred_obs, target_obs)
 
                     pred_rew = out["rew_pred"][:, :-1]
                     target_rew = b_rew[:, :-1]
                     loss_rew = F.mse_loss(pred_rew, target_rew)
 
+                    # 2. Multi-step Unrolled Rollout Loss (BPTT H=4) to prevent dreaming drift
+                    # Pick a random segment [t_start : t_start + H]
+                    t_start = torch.randint(10, cfg.seq_len - cfg.rollout_horizon - 2, (1,)).item()
+                    H_roll = cfg.rollout_horizon
+                    
+                    # Prime state up to t_start
+                    roll_state = model.init_state(b_obs.shape[0], device)
+                    for step_p in range(t_start):
+                        (_, _), roll_state, _ = model.step(b_obs[:, step_p], b_act[:, step_p], roll_state)
+                        
+                    # Unroll open-loop for H steps with autograd intact
+                    roll_pred_o = b_obs[:, t_start]
+                    roll_losses = []
+                    for step_r in range(H_roll):
+                        t_curr = t_start + step_r
+                        (roll_pred_o, _), roll_state, _ = model.step(roll_pred_o, b_act[:, t_curr], roll_state)
+                        roll_losses.append(F.mse_loss(roll_pred_o[:, :2], b_obs[:, t_curr + 1, :2]))
+                    loss_roll = torch.stack(roll_losses).mean()
+
+                    loss_obs = loss_obs_tf + (cfg.rollout_loss_weight * loss_roll)
                     loss = loss_obs + loss_rew
 
                     loss_w = torch.tensor(0.0, device=device)
