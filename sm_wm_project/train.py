@@ -168,7 +168,11 @@ def train(args):
                     loss_k = torch.tensor(0.0, device=device)
                     if "write_probs" in out:
                         loss_w = out["write_probs"].mean()
-                        loss_k = (out["m_history"] * out["keep_probs"]).mean()
+                        # Target-margin penalty: free budget up to cfg.target_slots (e.g. 5 slots)
+                        # Penalizes only when mean active slots exceed target_slots
+                        mean_active = out["m_history"].sum(dim=2).mean() # [B, T, K, 1] -> active slots per step
+                        excess_slots = F.relu(mean_active - cfg.target_slots)
+                        loss_k = (excess_slots ** 2) / cfg.num_slots
                         loss = loss + (lambda_w * loss_w) + (lambda_k * loss_k)
 
                 if use_amp:

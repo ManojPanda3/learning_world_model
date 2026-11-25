@@ -202,6 +202,11 @@ class SM_WM(nn.Module):
 
         obs_pred, rew_pred = self.pred_head(h_new)
 
+        # Residual position connection: next_pos = prev_pos + delta_pos
+        # obs_pred[..., :2] is delta position; add to x_prev[..., :2] and clamp to [-1, 1]
+        next_pos = torch.clamp(x_prev[..., :2] + obs_pred[..., :2], -1.0, 1.0)
+        full_obs_pred = torch.cat([next_pos, obs_pred[..., 2:]], dim=-1)
+
         next_state = {
             "h": h_new,
             "M": M_next,
@@ -213,7 +218,7 @@ class SM_WM(nn.Module):
             "write_mask": u,                 # [B, K, 1]
             "m_kept": m_kept,
         }
-        return (obs_pred, rew_pred), next_state, aux
+        return (full_obs_pred, rew_pred), next_state, aux
 
     def forward(self, obs, act):
         """
@@ -279,7 +284,9 @@ class GRU_WM(nn.Module):
         out, h_next = self.gru(m_cand, state["h"])
         h_feat = self.h_out_proj(out.squeeze(1))
         obs_pred, rew_pred = self.pred_head(h_feat)
-        return (obs_pred, rew_pred), {"h": h_next}, {}
+        next_pos = torch.clamp(x_prev[..., :2] + obs_pred[..., :2], -1.0, 1.0)
+        full_obs_pred = torch.cat([next_pos, obs_pred[..., 2:]], dim=-1)
+        return (full_obs_pred, rew_pred), {"h": h_next}, {}
 
     def forward(self, obs, act):
         B, T, _ = obs.shape
@@ -349,8 +356,9 @@ class SlidingTF_WM(nn.Module):
         trans_out = self.transformer(seq)
         h_feat = self.h_out_proj(trans_out[:, -1, :])
         obs_pred, rew_pred = self.pred_head(h_feat)
-
-        return (obs_pred, rew_pred), {"buf": buf}, {}
+        next_pos = torch.clamp(x_prev[..., :2] + obs_pred[..., :2], -1.0, 1.0)
+        full_obs_pred = torch.cat([next_pos, obs_pred[..., 2:]], dim=-1)
+        return (full_obs_pred, rew_pred), {"buf": buf}, {}
 
     def forward(self, obs, act):
         B, T, _ = obs.shape

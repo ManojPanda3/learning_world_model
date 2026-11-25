@@ -19,11 +19,12 @@ class Config:
     grad_clip: float = 1.0
     epochs: int = 30
     
-    # Anti-collapse curriculum penalties
-    warmup_epochs: int = 5
-    ramp_epochs: int = 15
+    # Target Margin Capacity
+    target_slots: float = 5.0
+    warmup_epochs: int = 8
+    ramp_epochs: int = 18
     lambda_w_max: float = 0.02
-    lambda_k_max: float = 0.012
+    lambda_k_max: float = 0.02
     
     # Gate bias inits
     write_gate_bias_init: float = 0.5
