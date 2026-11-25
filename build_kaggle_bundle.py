@@ -47,22 +47,13 @@ if test_res.returncode != 0:
     sys.exit(1)
 print("Verification passed successfully!")
 
-# 3. Process-level GPU orchestration for 2x T4
+# 3. Process-level GPU orchestration for 2x T4 (SM_WM retune only)
 runs = [
-    # Wave 1
+    # Wave 1 (parallel across GPU 0 and GPU 1)
     ("sm_wm", 42, "0"),
-    ("gru_wm", 42, "1"),
-    # Wave 2
-    ("sliding_tf", 42, "0"),
     ("sm_wm", 43, "1"),
-    # Wave 3
-    ("gru_wm", 43, "0"),
-    ("sliding_tf", 43, "1"),
-    # Wave 4
+    # Wave 2
     ("sm_wm", 44, "0"),
-    ("gru_wm", 44, "1"),
-    # Wave 5
-    ("sliding_tf", 44, "0"),
 ]
 
 os.makedirs("results", exist_ok=True)
