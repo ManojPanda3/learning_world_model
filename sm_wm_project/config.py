@@ -22,12 +22,12 @@ class Config:
     # Anti-collapse curriculum penalties
     warmup_epochs: int = 5
     ramp_epochs: int = 15
-    lambda_w_max: float = 0.05
-    lambda_k_max: float = 0.03
+    lambda_w_max: float = 0.02
+    lambda_k_max: float = 0.012
     
     # Gate bias inits
-    write_gate_bias_init: float = 0.0
-    evict_gate_bias_init: float = 0.0
+    write_gate_bias_init: float = 0.5
+    evict_gate_bias_init: float = 0.5
     
     # Dataset
     train_episodes: int = 10000
