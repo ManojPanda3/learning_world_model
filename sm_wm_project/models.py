@@ -241,19 +241,21 @@ class SM_WM(nn.Module):
         # 3. Transition candidate token
         m_cand_raw = self.trans_encoder(x_prev, a_prev, x_curr, delta_x, surprise_vec)  # [B, D]
 
-        # 4. Contextual sequence pass to get contextualized token M_cand_out
+        # 4. Contextual sequence pass to get contextualized token M_cand_ctx AND post-observation state h_post
         S = torch.cat([h_new.unsqueeze(1), M, m_cand_raw.unsqueeze(1)], dim=1)
         type_ids = torch.tensor([0] + [1] * K + [2], device=x_prev.device, dtype=torch.long)
         S = S + self.type_emb(type_ids).unsqueeze(0)
         attn_mask = self._build_attn_mask(m, B, x_prev.device)
         trans_out = self.transformer(S, mask=attn_mask)
         
+        # h_post is index 0 (updated fast state knowing true outcome x_curr), cand_ctx is index -1
+        h_post = self.h_out_proj(trans_out[:, 0, :])
         m_cand_ctx = self.cand_ctx_proj(trans_out[:, -1, :])  # [B, D]
         # Residual blend of pure transition + contextualized embedding
         M_store = (m_cand_raw + 0.5 * m_cand_ctx).unsqueeze(1)  # [B, 1, D]
 
         # 5. Write Gate: powered by surprise magnitude
-        write_in = torch.cat([M_store.squeeze(1), h_new, surprise_mag], dim=-1)  # [B, 2D + 1]
+        write_in = torch.cat([M_store.squeeze(1), h_post, surprise_mag], dim=-1)  # [B, 2D + 1]
         w_logits = self.write_gate(write_in)
         w = torch.sigmoid(w_logits).unsqueeze(-1)  # [B, 1, 1]
         w_ste = (w > 0.5).float() - w.detach() + w
@@ -265,9 +267,9 @@ class SM_WM(nn.Module):
         cos_sim = torch.sum(M_norm * store_norm, dim=-1, keepdim=True)  # [B, K, 1] in [-1, 1]
         gated_sim = cos_sim * w.detach()  # Gated by write probability: 0 if not writing!
 
-        # 6. Evict Gate: checks slots for obsoletion (via h_new) and redundancy (via gated_sim)
-        h_new_exp = h_new.unsqueeze(1).expand(B, K, D)
-        evict_in = torch.cat([M, h_new_exp, gated_sim], dim=-1)  # [B, K, 2D + 1]
+        # 6. Evict Gate: checks slots for obsoletion (via h_post seeing real x_curr) and redundancy (via gated_sim)
+        h_post_exp = h_post.unsqueeze(1).expand(B, K, D)
+        evict_in = torch.cat([M, h_post_exp, gated_sim], dim=-1)  # [B, K, 2D + 1]
         k_logits = self.evict_gate(evict_in)
         k = torch.sigmoid(k_logits)
         k_ste = (k > 0.5).float() - k.detach() + k
@@ -284,7 +286,7 @@ class SM_WM(nn.Module):
         m_next = m_kept * (1.0 - u) + 1.0 * u
 
         next_state = {
-            "h": h_new,
+            "h": h_post,
             "M": M_next,
             "m": m_next,
         }

@@ -25,13 +25,13 @@ Timestep t:
   Phase 3 (Encode Full Transition):
     (x_{t-1}, a_{t-1}, x_t, \Delta x_t, e_t) ──► [TransitionEncoder] ──► M_cand
 
-  Phase 4 (Contextualize Token):
-    [h_t, M_{t-1}, M_cand] ───────────────► [Transformer Context] ─► M_cand_ctx
+  Phase 4 (Contextualize Token & Compute Post-Observation State):
+    [h_t, M_{t-1}, M_cand] ───────────────► [Transformer Context] ─► M_cand_ctx, h_post
     M_store = LayerNorm(M_cand + 0.5 * M_cand_ctx)
 
   Phase 5 (Gated Write & Evict):
-    Surprise ||e_t||^2 + M_store ────────► [Write Gate (STE)] ───► w_t \in {0, 1}
-    CosineSim(M_i, M_store) * w_t ────────► [Evict Gate (STE)] ───► k_i \in {0, 1}
+    Surprise ||e_t||^2 + M_store + h_post ─► [Write Gate (STE)] ───► w_t \in {0, 1}
+    CosineSim(M_i, M_store) * w_t + h_post ─► [Evict Gate (STE)] ───► k_i \in {0, 1}
     Slot allocation via argmin(m_kept) ──► M_t, m_t
 ```
 
@@ -59,7 +59,9 @@ Once $x_t$ arrives, the full transition narrative is encoded:
    $$M_{\text{cand}} = \text{TransitionEncoder}([x_{t-1}, a_{t-1}, x_t, x_t - x_{t-1}, e_t]) \quad \in \mathbb{R}^{B \times d}$$
 3. Transformer contextualization pass:
    $$S_{\text{ctx}} = [h_t, M_{t-1}, M_{\text{cand}}] + \text{TypeEmb}$$
+   $$h_{\text{post}} = \text{Linear}(\text{TransformerOut}[:, 0, :])$$
    $$M_{\text{store}} = \text{LayerNorm}(M_{\text{cand}} + 0.5 \cdot \text{Linear}(\text{TransformerOut}[:, -1, :]))$$
+   *(Crucial: $h_{\text{post}}$ is informed by the true outcome $x_t$, allowing gates to see the real door unlock event!)*
 
 ### Module 4: Surprise-Driven Write Gate
 $$w_{\text{logit}} = \text{Linear}\Big(\text{SiLU}\big(\text{Linear}([M_{\text{store}}, h_t, \|e_t\|^2])\big)\Big)$$
