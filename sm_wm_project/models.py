@@ -162,7 +162,8 @@ class SM_WM(nn.Module):
     def _build_attn_mask(self, m, B, device):
         K = self.num_slots
         nhead = self.transformer.layers[0].self_attn.num_heads
-        slot_bias = (1.0 - m.squeeze(-1)) * (-10000.0)  # [B, K]
+        # Detach m for attention routing so recursive softmax backward doesn't explode
+        slot_bias = (1.0 - m.squeeze(-1).detach()) * (-10000.0)  # [B, K]
         h_bias = torch.zeros(B, 1, device=device)
         cand_bias = torch.zeros(B, 1, device=device)
         key_bias = torch.cat([h_bias, slot_bias, cand_bias], dim=1)  # [B, K+2]
