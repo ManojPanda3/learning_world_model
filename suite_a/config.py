@@ -27,11 +27,11 @@ class SuiteAConfig:
     target_slots: float = 5.0
     warmup_epochs: int = 10
     ramp_epochs: int = 20
-    lambda_w_max: float = 0.001
-    lambda_k_max: float = 0.015
+    lambda_w_max: float = 0.0  # ZERO linear penalty so write gate never starves
+    lambda_k_max: float = 0.015  # Only penalize when active slots exceed target_slots (5)
     rollout_loss_weight: float = 0.5
     rollout_horizon: int = 4
-    reward_loss_weight: float = 2.0
+    reward_loss_weight: float = 5.0  # Increased from 2.0 to give strong reward gradient for door outcomes
 
     # Gate bias inits: keep slots by default (+2.0), write novel transitions (+1.0)
     write_gate_bias_init: float = 1.0
