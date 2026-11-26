@@ -25,17 +25,17 @@ class SuiteAConfig:
 
     # Curriculum penalties & target capacity
     target_slots: float = 5.0
-    warmup_epochs: int = 6
-    ramp_epochs: int = 16
-    lambda_w_max: float = 0.005
+    warmup_epochs: int = 10
+    ramp_epochs: int = 20
+    lambda_w_max: float = 0.001
     lambda_k_max: float = 0.015
     rollout_loss_weight: float = 0.5
     rollout_horizon: int = 4
     reward_loss_weight: float = 2.0
 
-    # Gate bias inits
-    write_gate_bias_init: float = 0.5
-    evict_gate_bias_init: float = 0.5
+    # Gate bias inits: keep slots by default (+2.0), write novel transitions (+1.0)
+    write_gate_bias_init: float = 1.0
+    evict_gate_bias_init: float = 2.0
 
     # Dataset (200k transitions per task)
     target_train_transitions: int = 200_000

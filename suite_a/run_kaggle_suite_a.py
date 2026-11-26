@@ -133,28 +133,38 @@ def aggregate_results(out_dir="results_suite_a"):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--models", type=str, default="sm_wm", help="Comma-separated models to run (e.g. sm_wm)")
+    parser.add_argument("--skip_ablations", action="store_true", help="Skip Phase 2 ablations")
+    args, _ = parser.parse_known_args()
+
+    active_models = [m.strip() for m in args.models.split(",") if m.strip()]
+
     t_start = time.time()
     print("=== Suite A Kaggle Benchmark (Phase 1 + Phase 2) ===")
     print("PyTorch:", torch.__version__, "| CUDA:", torch.cuda.is_available(), "| GPUs:", torch.cuda.device_count())
+    print("Target models:", active_models)
 
     cfg = SuiteAConfig()
-    for m in PHASE1_MODELS:
+    for m in active_models:
         mod = build_model(m, cfg)
         print(f"Model {m:12s}: {sum(p.numel() for p in mod.parameters()):,} params")
 
     jobs = []
-    # Phase 1: Parity & Horizon Cliff + Scrambled + MultiStage (4 models x 6 tasks x 5 seeds)
+    # Phase 1: Parity & Horizon Cliff + Scrambled + MultiStage
     for task in PHASE1_TASKS:
-        for model in PHASE1_MODELS:
+        for model in active_models:
             for seed in SEEDS:
                 prof = (task == "kd_L128" and seed == 42)
                 jobs.append((task, model, "none", seed, prof))
 
-    # Phase 2: Component Ablations on SM_WM (6 ablations x 3 tasks x 5 seeds)
-    for task in PHASE2_TASKS:
-        for ab in PHASE2_ABLATIONS:
-            for seed in SEEDS:
-                jobs.append((task, "sm_wm", ab, seed, False))
+    # Phase 2: Component Ablations on SM_WM
+    if "sm_wm" in active_models and not args.skip_ablations:
+        for task in PHASE2_TASKS:
+            for ab in PHASE2_ABLATIONS:
+                for seed in SEEDS:
+                    jobs.append((task, "sm_wm", ab, seed, False))
 
     print(f"Total scheduled runs: {len(jobs)}")
     run_job_queue(jobs, out_dir="results_suite_a", epochs=cfg.epochs)

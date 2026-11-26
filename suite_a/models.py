@@ -282,6 +282,7 @@ class SM_WM(nn.Module):
         trans_out = self.transformer(S, mask=attn_mask)
 
         m_cand_ctx = self.cand_ctx_proj(trans_out[:, -1, :])
+        h_post = self.h_norm(self.h_out_proj(trans_out[:, 0, :]))
         M_store = self.store_norm(m_cand_raw + 0.5 * m_cand_ctx).unsqueeze(1)  # [B, 1, D]
 
         # 4-step Local Recency Buffer FIFO update
@@ -293,8 +294,8 @@ class SM_WM(nn.Module):
             recency_next = recency
             recency_m_next = recency_m
 
-        # Write gate
-        write_in = torch.cat([M_store.squeeze(1), h_new, surprise_mag], dim=-1)
+        # Write gate (uses h_post seeing true event outcome)
+        write_in = torch.cat([M_store.squeeze(1), h_post, surprise_mag], dim=-1)
         w = torch.sigmoid(self.write_gate(write_in)).unsqueeze(-1)  # [B, 1, 1]
         w_ste = (w > 0.5).to(w.dtype) - w.detach() + w
 
@@ -304,10 +305,10 @@ class SM_WM(nn.Module):
         cos_sim = torch.sum(M_norm * store_norm, dim=-1, keepdim=True)
         gated_sim = cos_sim * w.detach()
 
-        # Evict gate
+        # Evict gate (uses h_post to confirm event completion, e.g. door unlock)
         if self.use_eviction:
-            h_new_exp = h_new.unsqueeze(1).expand(B, K, D)
-            evict_in = torch.cat([M, h_new_exp, gated_sim], dim=-1)
+            h_post_exp = h_post.unsqueeze(1).expand(B, K, D)
+            evict_in = torch.cat([M, h_post_exp, gated_sim], dim=-1)
             k = torch.sigmoid(self.evict_gate(evict_in))
             k_ste = (k > 0.5).to(k.dtype) - k.detach() + k
         else:
@@ -324,7 +325,7 @@ class SM_WM(nn.Module):
         m_next = m_kept * (1.0 - u) + u
 
         next_state = {
-            "h": h_new,
+            "h": h_post,
             "M": M_next,
             "m": m_next,
             "recency": recency_next,

@@ -1,6 +1,6 @@
 {
-  "id": "pandapxl/sm-wm-suite-a-benchmark",
-  "title": "SM-WM Suite A Benchmark",
+  "id": "manojpanda199/sm-wm-v8-fixed-suite-a",
+  "title": "SM-WM V8 Fixed Suite A",
   "code_file": "run_suite_a_kaggle.py",
   "language": "python",
   "kernel_type": "script",
